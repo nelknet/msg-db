@@ -1,9 +1,85 @@
 # Msg DB
 
-Msg DB is a SQLite port of the core
-[Message DB](https://github.com/message-db/message-db) database API. It keeps the
-upstream shape of `database/` and `test/`, but replaces Postgres-specific behavior
-with a small SQLite loadable extension and SQLite-native schema objects.
+Msg DB is a small SQLite message store inspired by
+[Message DB](https://github.com/message-db/message-db). It gives you append-only
+streams, category reads, optimistic concurrency, JSON message bodies, and
+monotonically increasing store positions in a single SQLite database file.
+
+Use it when you want Message DB-style event streams without running Postgres. Build
+the extension, install the schema into a `.sqlite3` file, load the extension in each
+SQLite connection, and then use SQL functions like `write_message`,
+`get_stream_messages`, and `get_category_messages`.
+
+## Quick Start
+
+Build the extension and create a local store:
+
+```sh
+cmake -S . -B build -G Ninja
+cmake --build build
+
+MSGDB_EXTENSION=build/extension/message_db database/install.sh
+```
+
+Write and read a couple of messages:
+
+```sh
+sqlite3 message_store.sqlite3 <<'SQL'
+.load build/extension/message_db
+
+SELECT write_message(
+  gen_random_uuid(),
+  'account-123',
+  'Deposited',
+  '{"amount": 100}',
+  '{"correlationStreamName": "order-456"}'
+);
+
+SELECT write_message(
+  gen_random_uuid(),
+  'account-123',
+  'Withdrawn',
+  '{"amount": 25}',
+  '{"correlationStreamName": "order-456"}',
+  0
+);
+
+.headers on
+.mode column
+
+SELECT position, type, data
+FROM get_stream_messages('account-123');
+
+SELECT global_position, stream_name, type
+FROM get_category_messages('account');
+SQL
+```
+
+The first `write_message` returns stream position `0`. The second passes expected
+version `0`, writes position `1`, and would fail if another writer had already
+advanced the stream.
+
+Run the test suite:
+
+```sh
+ctest --test-dir build --output-on-failure
+```
+
+On Windows PowerShell:
+
+```powershell
+cmake -S . -B build -G Ninja
+cmake --build build
+
+$env:MSGDB_EXTENSION = "build/extension/message_db.dll"
+.\database\install.ps1
+```
+
+## Design Notes
+
+The port keeps the upstream shape of `database/` and `test/`, but replaces
+Postgres-specific behavior with a small SQLite loadable extension and SQLite-native
+schema objects.
 
 The port is intentionally conservative:
 
@@ -46,17 +122,9 @@ Optional development tools:
 - Valgrind on Linux
 - a Clang toolchain with libFuzzer
 
-## Quick Start
+## Build
 
-Build and test:
-
-```sh
-cmake -S . -B build -G Ninja
-cmake --build build
-ctest --test-dir build --output-on-failure
-```
-
-If Ninja is not installed:
+If Ninja is not installed, use the platform default generator:
 
 ```sh
 cmake -S . -B build

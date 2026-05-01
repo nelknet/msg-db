@@ -1,0 +1,12 @@
+.bail on
+.read database/schema/message-store.sql
+.read database/tables/messages.sql
+.read database/indexes/messages-id.sql
+.read database/indexes/messages-stream.sql
+.read database/indexes/messages-category.sql
+.read database/views/category-type-summary.sql
+.read database/views/stream-summary.sql
+.read database/views/stream-type-summary.sql
+.read database/views/type-category-summary.sql
+.read database/views/type-stream-summary.sql
+.read database/views/type-summary.sql

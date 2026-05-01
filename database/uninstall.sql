@@ -1,0 +1,10 @@
+DROP VIEW IF EXISTS category_type_summary;
+DROP VIEW IF EXISTS stream_summary;
+DROP VIEW IF EXISTS stream_type_summary;
+DROP VIEW IF EXISTS type_category_summary;
+DROP VIEW IF EXISTS type_stream_summary;
+DROP VIEW IF EXISTS type_summary;
+DROP INDEX IF EXISTS messages_category;
+DROP INDEX IF EXISTS messages_stream;
+DROP INDEX IF EXISTS messages_id;
+DROP TABLE IF EXISTS messages;

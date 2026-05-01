@@ -4,15 +4,29 @@ set -euo pipefail
 
 root=${MSGDB_ROOT:?MSGDB_ROOT is required}
 extension=${MSGDB_EXTENSION:?MSGDB_EXTENSION is required}
+sqlite_cli=${SQLITE:-sqlite3}
 db=$(mktemp "${TMPDIR:-/tmp}/msgdb-sqlite.XXXXXX.sqlite3")
 trap 'rm -f "$db" "$db-wal" "$db-shm"' EXIT
 
+sqlite_dot_arg() {
+  local value=$1
+
+  if [[ $value == *$'\n'* || $value == *$'\r'* ]]; then
+    printf 'sqlite dot-command paths cannot contain newlines: %s\n' "$value" >&2
+    exit 1
+  fi
+
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  printf '"%s"' "$value"
+}
+
 sqlite() {
-  sqlite3 -batch -noheader "$db" <<SQL
-.bail on
-.load $extension
-$*
-SQL
+  {
+    printf '.bail on\n'
+    printf '.load %s\n' "$(sqlite_dot_arg "$extension")"
+    printf '%s\n' "$*"
+  } | "$sqlite_cli" -batch -noheader "$db"
 }
 
 assert_eq() {
@@ -38,18 +52,18 @@ assert_error() {
 }
 
 sqlite "
-.read $root/database/schema/message-store.sql
-.read $root/database/tables/messages.sql
-.read $root/database/indexes/messages-id.sql
-.read $root/database/indexes/messages-stream.sql
-.read $root/database/indexes/messages-category.sql
-.read $root/database/views/category-type-summary.sql
-.read $root/database/views/stream-summary.sql
-.read $root/database/views/stream-type-summary.sql
-.read $root/database/views/type-category-summary.sql
-.read $root/database/views/type-stream-summary.sql
-.read $root/database/views/type-summary.sql
-"
+.read $(sqlite_dot_arg "$root/database/schema/message-store.sql")
+.read $(sqlite_dot_arg "$root/database/tables/messages.sql")
+.read $(sqlite_dot_arg "$root/database/indexes/messages-id.sql")
+.read $(sqlite_dot_arg "$root/database/indexes/messages-stream.sql")
+.read $(sqlite_dot_arg "$root/database/indexes/messages-category.sql")
+.read $(sqlite_dot_arg "$root/database/views/category-type-summary.sql")
+.read $(sqlite_dot_arg "$root/database/views/stream-summary.sql")
+.read $(sqlite_dot_arg "$root/database/views/stream-type-summary.sql")
+.read $(sqlite_dot_arg "$root/database/views/type-category-summary.sql")
+.read $(sqlite_dot_arg "$root/database/views/type-stream-summary.sql")
+.read $(sqlite_dot_arg "$root/database/views/type-summary.sql")
+" >/dev/null
 
 assert_eq '1.3.0' "SELECT message_store_version();"
 assert_eq 'account' "SELECT category('account-123+456');"
@@ -65,16 +79,28 @@ assert_eq '0' \
 assert_eq '1' \
   "SELECT write_message('b11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-1', 'Deposited', '{\"amount\": 20}', '{\"correlationStreamName\":\"order-1\"}', 0);"
 assert_eq '0' \
-  "SELECT write_message('c11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-2', 'Withdrawn', '{\"amount\": 5}', '{\"correlationStreamName\":\"order-2\"}', -1);"
+  "SELECT write_message('c11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-2', 'Withdrawn', '{\"amount\": 5}', '{\"correlationStreamName\":\"shipment-2\"}', -1);"
 assert_eq '0' \
   "SELECT write_message('d11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'invoice-1', 'Issued', '{\"amount\": 10}', NULL);"
 
 assert_error \
   "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-1', 'Deposited', '{\"amount\": 30}', NULL, 0);"
 assert_error \
+  "SELECT write_message('f11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-1', 'Deposited', '{\"amount\": 30}', NULL, '1');"
+assert_error \
+  "SELECT write_message('f11e9022-e741-4450-bf9c-c4cc5ddb6ea4', 'account-1', 'Deposited', '{\"amount\": 30}', NULL, 1.0);"
+assert_error \
+  "SELECT write_message('f11e9022-e741-4450-bf9c-c4cc5ddb6ea5', 'account-1', 'Deposited', '{\"amount\": 30}', NULL, X'01');"
+assert_error \
   "SELECT write_message('a11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-3', 'Deposited', '{\"amount\": 1}', NULL);"
 assert_error \
   "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-3', 'Deposited', '{broken}', NULL);"
+assert_eq '1' \
+  "SELECT instr(sql, 'AUTOINCREMENT') > 0 FROM sqlite_schema WHERE type = 'table' AND name = 'messages';"
+assert_error \
+  "UPDATE messages SET type = 'Corrected' WHERE id = 'a11e9022-e741-4450-bf9c-c4cc5ddb6ea3';"
+assert_error \
+  "DELETE FROM messages WHERE id = 'b11e9022-e741-4450-bf9c-c4cc5ddb6ea3';"
 
 assert_eq '1' "SELECT stream_version('account-1');"
 assert_eq '' "SELECT stream_version('missing-1');"
@@ -104,16 +130,22 @@ assert_error \
 sqlite "
 PRAGMA journal_mode = WAL;
 PRAGMA busy_timeout = 5000;
-"
+" >/dev/null 2>&1
 
+pids=()
 for i in $(seq 1 20); do
-  sqlite3 -batch "$db" <<SQL &
+  "$sqlite_cli" -batch "$db" >/dev/null 2>&1 <<SQL &
 .bail on
-.load $extension
-SELECT write_message(gen_random_uuid(), 'concurrent-1', 'Concurrent', '{\"n\": $i}', NULL);
+.timeout 5000
+.load $(sqlite_dot_arg "$extension")
+SELECT write_message(gen_random_uuid(), 'concurrent-1', 'Concurrent', '{"n": $i}', NULL);
 SQL
+  pids+=("$!")
 done
-wait
+
+for pid in "${pids[@]}"; do
+  wait "$pid"
+done
 
 assert_eq '20' "SELECT COUNT(*) FROM messages WHERE stream_name = 'concurrent-1';"
 assert_eq '20' "SELECT COUNT(DISTINCT position) FROM messages WHERE stream_name = 'concurrent-1';"

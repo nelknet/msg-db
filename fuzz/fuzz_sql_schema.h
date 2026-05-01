@@ -5,7 +5,7 @@
   "PRAGMA foreign_keys = ON;"                                                              \
   "PRAGMA busy_timeout = 5000;"                                                            \
   "CREATE TABLE messages ("                                                                \
-  "global_position INTEGER PRIMARY KEY,"                                                   \
+  "global_position INTEGER PRIMARY KEY AUTOINCREMENT,"                                     \
   "position INTEGER NOT NULL CHECK (position >= 0),"                                       \
   "time TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),"                     \
   "stream_name TEXT NOT NULL CHECK (length(stream_name) > 0),"                             \
@@ -21,6 +21,10 @@
   "[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]"                     \
   "[0-9A-Fa-f]')"                                                                          \
   ") STRICT;"                                                                              \
+  "CREATE TRIGGER messages_append_only_no_update BEFORE UPDATE ON messages BEGIN "         \
+  "SELECT RAISE(ABORT, 'messages is append-only'); END;"                                   \
+  "CREATE TRIGGER messages_append_only_no_delete BEFORE DELETE ON messages BEGIN "         \
+  "SELECT RAISE(ABORT, 'messages is append-only'); END;"                                   \
   "CREATE UNIQUE INDEX messages_id ON messages (id);"                                      \
   "CREATE UNIQUE INDEX messages_stream ON messages (stream_name, position);"               \
   "CREATE INDEX messages_category ON messages ("                                           \

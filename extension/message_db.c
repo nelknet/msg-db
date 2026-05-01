@@ -422,6 +422,11 @@ static void write_message_func(sqlite3_context *ctx, int argc, sqlite3_value **a
   }
 
   if (argc >= 6 && sqlite3_value_type(argv[5]) != SQLITE_NULL) {
+    if (sqlite3_value_type(argv[5]) != SQLITE_INTEGER) {
+      sqlite3_result_error(ctx, "write_message expected_version must be an integer or NULL",
+                           -1);
+      return;
+    }
     has_expected_version = true;
     expected_version = sqlite3_value_int64(argv[5]);
   }

@@ -16,6 +16,7 @@ option(MSGDB_BUILD_FUZZERS "Build libFuzzer harnesses" OFF)
 
 find_package(SQLite3 REQUIRED)
 find_package(Threads REQUIRED)
+find_program(MSGDB_SQLITE3_CLI sqlite3)
 
 add_library(msgdb_core STATIC
   extension/msgdb_core.c
@@ -80,7 +81,12 @@ function(msgdb_apply_warnings target)
     return()
   endif()
 
-  if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+  if(MSVC)
+    target_compile_options("${target}" PRIVATE
+      /W4
+      /WX
+    )
+  elseif(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options("${target}" PRIVATE
       -Wall
       -Wextra
@@ -173,4 +179,17 @@ if(BUILD_TESTING)
     NAME sql_integration
     COMMAND msgdb_sql_tests "${CMAKE_CURRENT_SOURCE_DIR}"
   )
+  if(MSGDB_SQLITE3_CLI AND NOT WIN32 AND NOT MSGDB_ENABLE_SANITIZERS)
+    add_test(
+      NAME install_sh_paths_with_spaces
+      COMMAND
+        "${CMAKE_CURRENT_SOURCE_DIR}/test/scripts/test-install-sh-paths.sh"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "$<TARGET_FILE:message_db>"
+    )
+    set_tests_properties(install_sh_paths_with_spaces PROPERTIES
+      ENVIRONMENT "SQLITE=${MSGDB_SQLITE3_CLI}"
+      SKIP_RETURN_CODE 77
+    )
+  endif()
 endif()

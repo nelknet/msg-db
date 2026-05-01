@@ -103,10 +103,23 @@ int main(int argc, char **argv) {
 
   assert_error(db, "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
                    "'account-1', 'Deposited', '{\"amount\": 30}', NULL, 0)");
+  assert_error(db, "SELECT write_message('f11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
+                   "'account-1', 'Deposited', '{\"amount\": 30}', NULL, '1')");
+  assert_error(db, "SELECT write_message('f11e9022-e741-4450-bf9c-c4cc5ddb6ea4', "
+                   "'account-1', 'Deposited', '{\"amount\": 30}', NULL, 1.0)");
+  assert_error(db, "SELECT write_message('f11e9022-e741-4450-bf9c-c4cc5ddb6ea5', "
+                   "'account-1', 'Deposited', '{\"amount\": 30}', NULL, X'01')");
   assert_error(db, "SELECT write_message('a11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
                    "'account-3', 'Deposited', '{\"amount\": 1}', NULL)");
   assert_error(db, "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
                    "'account-3', 'Deposited', '{broken}', NULL)");
+  assert_scalar_eq(db, "1",
+                   "SELECT instr(sql, 'AUTOINCREMENT') > 0 FROM sqlite_schema "
+                   "WHERE type = 'table' AND name = 'messages'");
+  assert_error(db, "UPDATE messages SET type = 'Corrected' "
+                   "WHERE id = 'a11e9022-e741-4450-bf9c-c4cc5ddb6ea3'");
+  assert_error(db, "DELETE FROM messages "
+                   "WHERE id = 'b11e9022-e741-4450-bf9c-c4cc5ddb6ea3'");
 
   assert_scalar_eq(db, "1", "SELECT stream_version('account-1')");
   assert_scalar_eq(db, "", "SELECT stream_version('missing-1')");

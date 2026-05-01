@@ -272,6 +272,7 @@ static char *read_file(const char *path) {
   size_t file_size_bytes = 0U;
   size_t bytes_read = 0U;
   char *buffer = NULL;
+  const char *failure = NULL;
 
   if (file == NULL) {
     fprintf(stderr, "fopen failed for %s: %s\n", path, strerror(errno));
@@ -279,36 +280,44 @@ static char *read_file(const char *path) {
   }
 
   if (fseek(file, 0L, SEEK_END) != 0) {
-    fclose(file);
-    fail(NULL, "fseek failed");
+    failure = "fseek failed";
+    goto error;
   }
   file_size = ftell(file);
   if (file_size < 0) {
-    fclose(file);
-    fail(NULL, "ftell failed");
+    failure = "ftell failed";
+    goto error;
   }
   if (fseek(file, 0L, SEEK_SET) != 0) {
-    fclose(file);
-    fail(NULL, "fseek reset failed");
+    failure = "fseek reset failed";
+    goto error;
   }
   file_size_bytes = (size_t)file_size;
 
   buffer = sqlite3_malloc64((sqlite3_uint64)file_size_bytes + 1U);
   if (buffer == NULL) {
-    fclose(file);
-    fail(NULL, "sqlite3_malloc64 failed");
+    failure = "sqlite3_malloc64 failed";
+    goto error;
   }
 
   bytes_read = fread(buffer, 1U, file_size_bytes, file);
   if (bytes_read != file_size_bytes) {
-    sqlite3_free(buffer);
-    fclose(file);
-    fail(NULL, "fread failed");
+    failure = "fread failed";
+    goto error;
   }
   buffer[file_size_bytes] = '\0';
 
-  fclose(file);
+  if (fclose(file) != 0) {
+    sqlite3_free(buffer);
+    fail(NULL, "fclose failed");
+  }
+
   return buffer;
+
+error:
+  sqlite3_free(buffer);
+  (void)fclose(file);
+  fail(NULL, failure != NULL ? failure : "read_file failed");
 }
 
 static char *root_path(const char *root, const char *relative_path) {

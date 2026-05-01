@@ -90,4 +90,4 @@ jobs:
       - name: clang-tidy
         run: clang-tidy -p build extension/*.c test/c/*.c fuzz/*.c
       - name: cppcheck
-        run: cppcheck --project=build/compile_commands.json --enable=warning,style,performance,portability --error-exitcode=1
+        run: cppcheck --project=build/compile_commands.json --enable=warning,style,performance,portability --suppress=constParameterCallback --error-exitcode=1

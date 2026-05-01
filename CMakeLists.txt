@@ -17,6 +17,9 @@ find_package(Threads REQUIRED)
 add_library(msgdb_core STATIC
   extension/msgdb_core.c
 )
+set_target_properties(msgdb_core PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
 target_include_directories(msgdb_core PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/extension"
 )
@@ -58,6 +61,9 @@ target_link_libraries(msgdb_sql_tests PRIVATE msgdb_extension_static SQLite::SQL
 target_include_directories(msgdb_sql_tests PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/extension"
 )
+if(NOT WIN32)
+  target_compile_definitions(msgdb_sql_tests PRIVATE _POSIX_C_SOURCE=200809L)
+endif()
 
 function(msgdb_apply_warnings target)
   if(NOT MSGDB_STRICT_WARNINGS)

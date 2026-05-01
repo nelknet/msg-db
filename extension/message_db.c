@@ -94,6 +94,10 @@ static int filter_category(msgdb_cursor *cursor, int idxNum, int argc,
 static int filter_last_stream(msgdb_cursor *cursor, int idxNum, int argc,
                               sqlite3_value **argv);
 
+static const msgdb_vtab_kind msgdb_stream_vtab_kind = MSGDB_VTAB_STREAM;
+static const msgdb_vtab_kind msgdb_category_vtab_kind = MSGDB_VTAB_CATEGORY;
+static const msgdb_vtab_kind msgdb_last_stream_vtab_kind = MSGDB_VTAB_LAST_STREAM;
+
 static const sqlite3_module msgdb_module = {.iVersion = 0,
                                             .xCreate = NULL,
                                             .xConnect = msgdb_vtab_connect,
@@ -179,17 +183,17 @@ int msgdb_register(sqlite3 *db) {
   }
 
   rc = sqlite3_create_module(db, "get_stream_messages", &msgdb_module,
-                             (void *)(uintptr_t)MSGDB_VTAB_STREAM);
+                             (void *)&msgdb_stream_vtab_kind);
   if (rc != SQLITE_OK) {
     return rc;
   }
   rc = sqlite3_create_module(db, "get_category_messages", &msgdb_module,
-                             (void *)(uintptr_t)MSGDB_VTAB_CATEGORY);
+                             (void *)&msgdb_category_vtab_kind);
   if (rc != SQLITE_OK) {
     return rc;
   }
   return sqlite3_create_module(db, "get_last_stream_message", &msgdb_module,
-                               (void *)(uintptr_t)MSGDB_VTAB_LAST_STREAM);
+                               (void *)&msgdb_last_stream_vtab_kind);
 }
 
 static int register_function(sqlite3 *db, const char *name, int argc, int flags,
@@ -528,7 +532,7 @@ cleanup:
 static int msgdb_vtab_connect(sqlite3 *db, void *pAux, int argc, const char *const *argv,
                               sqlite3_vtab **ppVtab, char **pzErr) {
   msgdb_vtab *vtab = NULL;
-  msgdb_vtab_kind kind = (msgdb_vtab_kind)(uintptr_t)pAux;
+  const msgdb_vtab_kind *kind = (const msgdb_vtab_kind *)pAux;
   const char *schema = NULL;
   int rc = SQLITE_OK;
 
@@ -536,7 +540,11 @@ static int msgdb_vtab_connect(sqlite3 *db, void *pAux, int argc, const char *con
   (void)argv;
   (void)pzErr;
 
-  switch (kind) {
+  if (kind == NULL) {
+    return SQLITE_MISUSE;
+  }
+
+  switch (*kind) {
   case MSGDB_VTAB_STREAM:
     schema = "CREATE TABLE x(id TEXT, stream_name TEXT, type TEXT, position INTEGER, "
              "global_position INTEGER, data TEXT, metadata TEXT, time TEXT, "
@@ -569,7 +577,7 @@ static int msgdb_vtab_connect(sqlite3 *db, void *pAux, int argc, const char *con
 
   memset(vtab, 0, sizeof(*vtab));
   vtab->db = db;
-  vtab->kind = kind;
+  vtab->kind = *kind;
   *ppVtab = &vtab->base;
 
   return SQLITE_OK;

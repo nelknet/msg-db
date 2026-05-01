@@ -115,8 +115,7 @@ The port is intentionally conservative:
 - `global_position` is the ordered store position.
 - per-stream `position` starts at `0`.
 - message IDs are UUIDv4 text values.
-- `data` and `metadata` are canonical JSON text produced by SQLite `json()` and
-  guarded by `json_valid` checks.
+- `data` and `metadata` are JSON text guarded by `json_valid` checks.
 - advisory locks are not reimplemented; `acquire_lock` is a compatibility shim.
 
 ## Status
@@ -289,7 +288,7 @@ value fails.
 
 The `messages` table stores:
 
-- `global_position INTEGER PRIMARY KEY AUTOINCREMENT`
+- `global_position INTEGER PRIMARY KEY`
 - `position INTEGER NOT NULL`
 - `time TEXT NOT NULL`
 - `stream_name TEXT NOT NULL`
@@ -298,8 +297,8 @@ The `messages` table stores:
 - `metadata TEXT`
 - `id TEXT NOT NULL`
 
-Indexes enforce unique message IDs and unique `(stream_name, position)` pairs.
-Expression indexes support category, correlation, and type-filtered stream reads.
+Indexes enforce unique message IDs and unique `(stream_name, position)` pairs. An
+expression index supports category and correlation reads.
 
 ## Concurrency
 

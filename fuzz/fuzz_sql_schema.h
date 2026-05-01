@@ -29,10 +29,6 @@
   "CREATE UNIQUE INDEX messages_stream ON messages (stream_name, position);"               \
   "CREATE INDEX messages_category ON messages ("                                           \
   "category(stream_name), global_position, "                                               \
-  "category(json_extract(metadata, '$.correlationStreamName')));"                          \
-  "CREATE INDEX messages_category_correlation ON messages ("                               \
-  "category(stream_name), category(json_extract(metadata, '$.correlationStreamName')), "   \
-  "global_position);"                                                                      \
-  "CREATE INDEX messages_stream_type ON messages (stream_name, type, position DESC);"
+  "category(json_extract(metadata, '$.correlationStreamName')));"
 
 #endif

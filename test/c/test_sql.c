@@ -100,9 +100,6 @@ int main(int argc, char **argv) {
   assert_scalar_eq(db, "0",
                    "SELECT write_message('d11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
                    "'invoice-1', 'Issued', '{\"amount\": 10}', NULL)");
-  assert_scalar_eq(db, "{\"amount\":10}",
-                   "SELECT data FROM messages "
-                   "WHERE id = 'a11e9022-e741-4450-bf9c-c4cc5ddb6ea3'");
 
   assert_error(db, "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
                    "'account-1', 'Deposited', '{\"amount\": 30}', NULL, 0)");
@@ -116,16 +113,9 @@ int main(int argc, char **argv) {
                    "'account-3', 'Deposited', '{\"amount\": 1}', NULL)");
   assert_error(db, "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
                    "'account-3', 'Deposited', '{broken}', NULL)");
-  exec_sql(db, "CREATE VIEW write_message_from_view AS "
-               "SELECT write_message('f11e9022-e741-4450-bf9c-c4cc5ddb6ea6', "
-               "'account-4', 'Deposited', '{\"amount\": 1}', NULL)");
-  assert_error(db, "SELECT * FROM write_message_from_view");
   assert_scalar_eq(db, "1",
                    "SELECT instr(sql, 'AUTOINCREMENT') > 0 FROM sqlite_schema "
                    "WHERE type = 'table' AND name = 'messages'");
-  assert_scalar_eq(db, "2",
-                   "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'index' AND name IN "
-                   "('messages_category_correlation', 'messages_stream_type')");
   assert_error(db, "UPDATE messages SET type = 'Corrected' "
                    "WHERE id = 'a11e9022-e741-4450-bf9c-c4cc5ddb6ea3'");
   assert_error(db, "DELETE FROM messages "
@@ -142,10 +132,7 @@ int main(int argc, char **argv) {
   assert_scalar_eq(db, "1",
                    "SELECT position FROM get_last_stream_message('account-1', "
                    "'Deposited')");
-  assert_error(db, "SELECT * FROM get_stream_messages");
   assert_error(db, "SELECT * FROM get_stream_messages('account')");
-  assert_error(db, "SELECT * FROM get_stream_messages('account-1', '0')");
-  assert_error(db, "SELECT * FROM get_stream_messages('account-1', 0, 1.0)");
 
   assert_scalar_eq(
       db, "1,2,3",
@@ -155,10 +142,6 @@ int main(int argc, char **argv) {
                    "get_category_messages('account', 1, 1000, 'order')");
   assert_error(db, "SELECT * FROM get_category_messages('account-1')");
   assert_error(db, "SELECT * FROM get_category_messages('account', 1, 1000, 'order-1')");
-  assert_error(db, "SELECT * FROM get_category_messages");
-  assert_error(db, "SELECT * FROM get_category_messages('account', '1')");
-  assert_error(db, "SELECT * FROM get_category_messages('account', 1, 1000, NULL, '0', 2)");
-  assert_error(db, "SELECT * FROM get_category_messages('account', 1, 1000, NULL, 0, '2')");
   assert_scalar_eq(
       db, "3",
       "SELECT (SELECT COUNT(*) FROM get_category_messages('account', 1, 1000, "

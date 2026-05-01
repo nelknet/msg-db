@@ -1,9 +1,9 @@
-# Message DB for SQLite
+# Msg DB
 
-This is a SQLite port of the core [Message DB](https://github.com/message-db/message-db)
-database API. It keeps the upstream shape of `database/` and `test/`, but replaces
-Postgres-specific behavior with a small SQLite loadable extension and SQLite-native
-schema objects.
+Msg DB is a SQLite port of the core
+[Message DB](https://github.com/message-db/message-db) database API. It keeps the
+upstream shape of `database/` and `test/`, but replaces Postgres-specific behavior
+with a small SQLite loadable extension and SQLite-native schema objects.
 
 The port is intentionally conservative:
 

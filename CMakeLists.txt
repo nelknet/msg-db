@@ -117,19 +117,43 @@ if(MSGDB_BUILD_FUZZERS)
   )
   unset(CMAKE_REQUIRED_FLAGS)
 
-  add_executable(fuzz_strings fuzz/fuzz_strings.c)
-  target_link_libraries(fuzz_strings PRIVATE msgdb_core)
-  if(MSGDB_HAS_LIBFUZZER)
-    target_compile_options(fuzz_strings PRIVATE -fsanitize=fuzzer,address,undefined)
-    target_link_options(fuzz_strings PRIVATE -fsanitize=fuzzer,address,undefined)
-  else()
-    target_compile_definitions(fuzz_strings PRIVATE MSGDB_STANDALONE_FUZZER=1)
-    if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
-      target_compile_options(fuzz_strings PRIVATE -fsanitize=address,undefined)
-      target_link_options(fuzz_strings PRIVATE -fsanitize=address,undefined)
+  function(msgdb_add_fuzzer target source)
+    add_executable("${target}" "${source}")
+    target_include_directories("${target}" PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/extension"
+      "${CMAKE_CURRENT_SOURCE_DIR}/fuzz"
+    )
+
+    if(MSGDB_HAS_LIBFUZZER)
+      target_compile_options("${target}" PRIVATE -fsanitize=fuzzer,address,undefined)
+      target_link_options("${target}" PRIVATE -fsanitize=fuzzer,address,undefined)
+    else()
+      target_compile_definitions("${target}" PRIVATE MSGDB_STANDALONE_FUZZER=1)
+      if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+        target_compile_options("${target}" PRIVATE -fsanitize=address,undefined)
+        target_link_options("${target}" PRIVATE -fsanitize=address,undefined)
+      endif()
     endif()
-  endif()
-  msgdb_apply_warnings(fuzz_strings)
+
+    msgdb_apply_warnings("${target}")
+  endfunction()
+
+  msgdb_add_fuzzer(fuzz_strings fuzz/fuzz_strings.c)
+  target_link_libraries(fuzz_strings PRIVATE msgdb_core)
+
+  msgdb_add_fuzzer(fuzz_sql_model fuzz/fuzz_sql_model.c)
+  target_link_libraries(fuzz_sql_model PRIVATE
+    msgdb_extension_static
+    msgdb_core
+    SQLite::SQLite3
+  )
+
+  msgdb_add_fuzzer(fuzz_vtab_args fuzz/fuzz_vtab_args.c)
+  target_link_libraries(fuzz_vtab_args PRIVATE
+    msgdb_extension_static
+    msgdb_core
+    SQLite::SQLite3
+  )
 endif()
 
 include(CTest)

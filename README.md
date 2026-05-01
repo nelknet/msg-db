@@ -300,12 +300,26 @@ Fuzzer smoke build:
 
 ```sh
 cmake -S . -B build-fuzz -DMSGDB_BUILD_FUZZERS=ON
-cmake --build build-fuzz --target fuzz_strings
-./build-fuzz/fuzz_strings
+cmake --build build-fuzz --target fuzz_strings fuzz_sql_model fuzz_vtab_args
+
+./build-fuzz/fuzz_strings -runs=1024 -max_len=4096
+./build-fuzz/fuzz_sql_model -runs=512 -max_len=1024
+./build-fuzz/fuzz_vtab_args -runs=512 -max_len=1024
 ```
 
-When libFuzzer is available, `fuzz_strings` is built as a libFuzzer target. Otherwise
-it falls back to a sanitizer-backed standalone smoke executable.
+The fuzz suite covers three layers:
+
+- `fuzz_strings` checks stream/category/id/cardinal-id properties, hash safety, and
+  UUIDv4 canonicalization.
+- `fuzz_sql_model` runs bounded write/read operation sequences against SQLite and a
+  small in-memory model, checking stream positions, global positions, expected
+  versions, duplicate IDs, stream reads, category reads, and last-message reads.
+- `fuzz_vtab_args` feeds mixed NULL, integer, text, and blob arguments into the
+  table-valued read APIs and requires clean rows or clean SQLite errors.
+
+When libFuzzer is available, these are built as libFuzzer targets. Otherwise they
+fall back to sanitizer-backed standalone smoke executables. CI runs short fuzz smoke
+checks on each push and pull request; scheduled CI runs longer fuzz campaigns.
 
 ## Repository Layout
 

@@ -1,31 +1,53 @@
-# Msg DB
+# <img src="docs/msg-db-logo.svg" alt="" width="34" height="34"> Msg DB
 
-Msg DB is a small SQLite message store inspired by
-[Message DB](https://github.com/message-db/message-db). It gives you append-only
-streams, category reads, optimistic concurrency, JSON message bodies, and
-monotonically increasing store positions in a single SQLite database file.
+[![CI](https://github.com/nelknet/msg-db/actions/workflows/ci.yml/badge.svg)](https://github.com/nelknet/msg-db/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/nelknet/msg-db/actions/workflows/codeql.yml/badge.svg)](https://github.com/nelknet/msg-db/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/nelknet/msg-db?display_name=tag&label=release)](https://github.com/nelknet/msg-db/releases/latest)
 
-Use it when you want Message DB-style event streams without running Postgres. Build
-the extension, install the schema into a `.sqlite3` file, load the extension in each
-SQLite connection, and then use SQL functions like `write_message`,
-`get_stream_messages`, and `get_category_messages`.
+Msg DB gives you Message DB-style event streams in one SQLite database file. It
+stores append-only messages, assigns stream positions, supports category reads,
+checks optimistic concurrency, and keeps JSON message bodies and metadata in
+plain SQLite tables.
+
+Download a release package, install the schema into a `.sqlite3` file, load the
+extension in each SQLite connection, and use SQL functions like `write_message`,
+`get_stream_messages`, and `get_category_messages`. No Postgres server is needed.
 
 ## Quick Start
 
-Build the extension and create a local store:
+Download the release package for your platform:
+
+| Platform | Asset |
+| --- | --- |
+| Linux x86_64 | `msg-db-v0.1.0-linux-x86_64.zip` |
+| macOS Apple Silicon | `msg-db-v0.1.0-macos-arm64.zip` |
+| macOS Intel | `msg-db-v0.1.0-macos-x86_64.zip` |
+| Windows x86_64 | `msg-db-v0.1.0-windows-x86_64.zip` |
+
+On Linux x86_64:
 
 ```sh
-cmake -S . -B build -G Ninja
-cmake --build build
+version=v0.1.0
+asset=msg-db-$version-linux-x86_64
 
-MSGDB_EXTENSION=build/extension/message_db database/install.sh
+curl -LO "https://github.com/nelknet/msg-db/releases/download/$version/$asset.zip"
+unzip "$asset.zip"
+cd "$asset"
+
+MSGDB_EXTENSION=extension/message_db.so database/install.sh
 ```
 
-Write and read a couple of messages:
+For macOS, change the `asset` value to `msg-db-v0.1.0-macos-arm64` or
+`msg-db-v0.1.0-macos-x86_64`, then use
+`MSGDB_EXTENSION=extension/message_db.dylib`. If the system `sqlite3` does not
+show `.load` in `.help load`, install SQLite with Homebrew and put it on your
+`PATH` before running the install script.
+
+Write and read a couple of messages from the new `message_store.sqlite3` file:
 
 ```sh
 sqlite3 message_store.sqlite3 <<'SQL'
-.load build/extension/message_db
+.load extension/message_db
 
 SELECT write_message(
   gen_random_uuid(),
@@ -59,19 +81,25 @@ The first `write_message` returns stream position `0`. The second passes expecte
 version `0`, writes position `1`, and would fail if another writer had already
 advanced the stream.
 
-Run the test suite:
+Check the store:
 
 ```sh
-ctest --test-dir build --output-on-failure
+sqlite3 message_store.sqlite3 "SELECT COUNT(*) FROM messages;"
 ```
 
 On Windows PowerShell:
 
 ```powershell
-cmake -S . -B build -G Ninja
-cmake --build build
+$Version = "v0.1.0"
+$Asset = "msg-db-$Version-windows-x86_64"
 
-$env:MSGDB_EXTENSION = "build/extension/message_db.dll"
+Invoke-WebRequest `
+  "https://github.com/nelknet/msg-db/releases/download/$Version/$Asset.zip" `
+  -OutFile "$Asset.zip"
+Expand-Archive "$Asset.zip" -DestinationPath .
+Set-Location $Asset
+
+$env:MSGDB_EXTENSION = "extension/message_db.dll"
 .\database\install.ps1
 ```
 
@@ -98,16 +126,24 @@ Implemented:
   version reporting, compatibility locking, and writing messages
 - table-valued virtual tables for stream, category, and last-message reads
 - SQLite schema, indexes, and summary views
-- C unit tests, SQLite integration tests, concurrency tests, sanitizer builds, and a
-  fuzz harness
+- C unit tests, SQLite integration tests, concurrency tests, sanitizer builds, and
+  fuzz harnesses
+- GitHub release packages for Linux x86_64, macOS x86_64, macOS arm64, and Windows
+  x86_64
 
 Not implemented:
 
 - the upstream SQL `condition` retrieval argument. This port rejects it instead of
   appending caller-provided SQL into a query string.
-- packaged releases. Build artifacts are produced locally by CMake.
 
 ## Requirements
+
+Release packages require:
+
+- SQLite 3 with loadable extension support
+- `sqlite3` on your `PATH` if you use the included install scripts
+
+Source builds require:
 
 - CMake 3.20+
 - a C11 compiler
@@ -132,16 +168,18 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-The loadable extension is written to:
+On macOS source builds, prefer Homebrew SQLite so the extension is built against
+headers that expose SQLite's loadable-extension API:
 
-```text
-build/extension/message_db.so
+```sh
+brew install sqlite
+cmake -S . -B build -DCMAKE_PREFIX_PATH="$(brew --prefix sqlite)"
 ```
 
-Platform suffixes vary:
+The loadable extension is written under `build/extension`. Platform suffixes vary:
 
 ```text
-build/extension/message_db.so     Linux and other Unix-like systems
+build/extension/message_db.so     Linux and Unix-like systems that use .so
 build/extension/message_db.dylib  macOS
 build/extension/message_db.dll    Windows
 ```
@@ -154,33 +192,38 @@ build/extension/message_db
 
 ## Create A Store
 
-Install the schema into a local SQLite database:
+From a release package, install the schema into a local SQLite database:
 
 ```sh
-MSGDB_EXTENSION=build/extension/message_db database/install.sh
+MSGDB_EXTENSION=extension/message_db.so database/install.sh
 ```
+
+Use `extension/message_db.dylib` on macOS and `extension/message_db.dll` on Windows.
 
 By default this creates `message_store.sqlite3` in the repository root. To choose a
 different file:
 
 ```sh
 DATABASE_NAME=/tmp/message_store.sqlite3 \
-MSGDB_EXTENSION=build/extension/message_db \
+MSGDB_EXTENSION=extension/message_db.so \
 database/install.sh
 ```
 
 On Windows PowerShell:
 
 ```powershell
-$env:MSGDB_EXTENSION = "build/extension/message_db.dll"
+$env:MSGDB_EXTENSION = "extension/message_db.dll"
 .\database\install.ps1
 ```
+
+When working from a source build, use the extension path under `build/extension`
+instead.
 
 The extension must be loaded for each SQLite connection that uses the Message DB API.
 For the SQLite CLI:
 
 ```sql
-.load build/extension/message_db
+.load extension/message_db
 ```
 
 Some SQLite builds disable loadable extensions in the CLI. Application code can load
@@ -190,7 +233,7 @@ the extension through the SQLite C API with `sqlite3_enable_load_extension` and
 ## Example
 
 ```sql
-.load build/extension/message_db
+.load extension/message_db
 
 SELECT write_message(
   gen_random_uuid(),
@@ -282,7 +325,7 @@ COMMIT;
 Useful local checks:
 
 ```sh
-xcrun clang-format --dry-run --Werror extension/*.c extension/*.h test/c/*.c fuzz/*.c
+xcrun clang-format --dry-run --Werror extension/*.c extension/*.h test/c/*.c fuzz/*.c fuzz/*.h
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
@@ -325,9 +368,11 @@ checks on each push and pull request; scheduled CI runs longer fuzz campaigns.
 
 ```text
 database/             SQLite schema, indexes, views, and install scripts
+docs/                 README logo and documentation assets
 extension/            C extension and reusable core helpers
 fuzz/                 fuzz harnesses
 test/c/               C unit and integration tests
 test/scripts/         shell-oriented SQL test support
+VERSION               project release version
 .github/workflows/    CI, CodeQL, and scheduled safety checks
 ```

@@ -5,6 +5,7 @@ source_code_references/
 build/
 build-*/
 cmake-build-*/
+dist/
 out/
 
 # CMake and generator output

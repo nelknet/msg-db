@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.asset_suffix }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_suffix: linux-x86_64
+            extension_suffix: so
+          - os: macos-15-intel
+            asset_suffix: macos-x86_64
+            extension_suffix: dylib
+          - os: macos-14
+            asset_suffix: macos-arm64
+            extension_suffix: dylib
+          - os: windows-latest
+            asset_suffix: windows-x86_64
+            extension_suffix: dll
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build sqlite3 libsqlite3-dev
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja sqlite
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix sqlite)" >> "$GITHUB_ENV"
+
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        run: vcpkg install sqlite3:x64-windows
+
+      - name: Configure
+        if: runner.os != 'Windows'
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure Windows
+        if: runner.os == 'Windows'
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_TARGET_TRIPLET=x64-windows
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package Unix
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          asset="msg-db-${GITHUB_REF_NAME}-${{ matrix.asset_suffix }}"
+          stage="$RUNNER_TEMP/$asset"
+          cmake -E make_directory "$stage"
+          cmake -E copy README.md VERSION "$stage/"
+          cmake -E copy_directory database "$stage/database"
+          cmake -E make_directory "$stage/extension"
+          cmake -E copy "build/extension/message_db.${{ matrix.extension_suffix }}" "$stage/extension/"
+          cmake -E make_directory dist
+          cmake -E chdir "$RUNNER_TEMP" cmake -E tar cf "$GITHUB_WORKSPACE/dist/$asset.zip" --format=zip "$asset"
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $asset = "msg-db-$env:GITHUB_REF_NAME-${{ matrix.asset_suffix }}"
+          $stage = Join-Path $env:RUNNER_TEMP $asset
+          cmake -E make_directory $stage
+          cmake -E copy README.md VERSION $stage
+          cmake -E copy_directory database "$stage/database"
+          cmake -E make_directory "$stage/extension"
+          cmake -E copy "build/extension/message_db.${{ matrix.extension_suffix }}" "$stage/extension/"
+          cmake -E make_directory dist
+          cmake -E chdir $env:RUNNER_TEMP cmake -E tar cf "$env:GITHUB_WORKSPACE/dist/$asset.zip" --format=zip $asset
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msg-db-${{ github.ref_name }}-${{ matrix.asset_suffix }}
+          path: dist/*.zip
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<NOTES
+          Msg DB ${GITHUB_REF_NAME} packages the SQLite Message DB port for Linux, macOS, and Windows.
+
+          It includes:
+          - a loadable SQLite extension
+          - install scripts and SQL schema files
+          - Linux x86_64, macOS x86_64, macOS arm64, and Windows x86_64 packages
+          - C/SQL tests, sanitizer checks, static analysis, CodeQL, and fuzz smoke in CI
+
+          Download the package for your platform, unzip it, and follow the README quickstart.
+          NOTES
+
+          mapfile -t assets < <(find dist -name '*.zip' -type f | sort)
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            --title "Msg DB $GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            --verify-tag

@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(message_db_sqlite VERSION 0.1.0 LANGUAGES C)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" MSGDB_PROJECT_VERSION LIMIT_COUNT 1)
+string(STRIP "${MSGDB_PROJECT_VERSION}" MSGDB_PROJECT_VERSION)
+
+project(message_db_sqlite VERSION "${MSGDB_PROJECT_VERSION}" LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -27,9 +30,10 @@ target_include_directories(msgdb_core PUBLIC
 add_library(message_db MODULE
   extension/message_db.c
 )
-target_link_libraries(message_db PRIVATE msgdb_core SQLite::SQLite3)
+target_link_libraries(message_db PRIVATE msgdb_core)
 target_include_directories(message_db PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/extension"
+  "${SQLite3_INCLUDE_DIRS}"
 )
 set_target_properties(message_db PROPERTIES
   PREFIX ""
@@ -39,6 +43,12 @@ set_target_properties(message_db PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/extension"
   WINDOWS_EXPORT_ALL_SYMBOLS ON
 )
+if(APPLE)
+  set_target_properties(message_db PROPERTIES
+    SUFFIX ".dylib"
+  )
+  target_link_options(message_db PRIVATE -undefined dynamic_lookup)
+endif()
 
 add_library(msgdb_extension_static STATIC
   extension/message_db.c

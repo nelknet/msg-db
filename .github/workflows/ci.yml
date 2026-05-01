@@ -37,7 +37,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ninja-build sqlite3 libsqlite3-dev
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
-        run: brew install ninja sqlite
+        run: |
+          brew install ninja sqlite
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix sqlite)" >> "$GITHUB_ENV"
       - name: Configure
         run: cmake -S . -B build -G Ninja -DMSGDB_BUILD_FUZZERS=ON
       - name: Build

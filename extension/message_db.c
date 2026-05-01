@@ -84,7 +84,8 @@ static int sql_exec(sqlite3 *db, const char *sql, char **error);
 static void set_context_sql_error(sqlite3_context *ctx, const char *prefix, int rc);
 static int vtab_error(sqlite3_vtab *vtab, const char *format, ...);
 static bool vtab_value_text(sqlite3_value *value, const char **text, int *bytes);
-static sqlite3_int64 optional_i64(sqlite3_value *value, sqlite3_int64 default_value);
+static bool optional_i64(sqlite3_value *value, sqlite3_int64 default_value,
+                         sqlite3_int64 *result);
 static bool optional_is_present(sqlite3_value *value);
 static int bind_text_value(sqlite3_stmt *stmt, int index, const char *text, int bytes);
 static int cursor_step(msgdb_cursor *cursor);
@@ -579,17 +580,46 @@ static int msgdb_vtab_best_index(sqlite3_vtab *pVTab, sqlite3_index_info *pIdxIn
   int idx_num = 0;
   int hidden_start = 8;
   int hidden_end = 0;
+  const char *required_parameter = NULL;
+  bool required_seen = false;
+  bool required_usable = false;
 
   switch (vtab->kind) {
   case MSGDB_VTAB_STREAM:
     hidden_end = 11;
+    required_parameter = "stream name";
     break;
   case MSGDB_VTAB_CATEGORY:
     hidden_end = 14;
+    required_parameter = "category";
     break;
   case MSGDB_VTAB_LAST_STREAM:
     hidden_end = 9;
+    required_parameter = "stream name";
     break;
+  }
+
+  for (int i = 0; i < pIdxInfo->nConstraint; i++) {
+    const struct sqlite3_index_constraint *constraint = &pIdxInfo->aConstraint[i];
+
+    if (constraint->iColumn != hidden_start ||
+        constraint->op != SQLITE_INDEX_CONSTRAINT_EQ) {
+      continue;
+    }
+
+    required_seen = true;
+    if (constraint->usable != 0) {
+      required_usable = true;
+    }
+    break;
+  }
+
+  if (!required_seen) {
+    return vtab_error(pVTab, "Message DB table-valued function requires a %s",
+                      required_parameter);
+  }
+  if (!required_usable) {
+    return SQLITE_CONSTRAINT;
   }
 
   for (int column = hidden_start; column <= hidden_end; column++) {
@@ -721,11 +751,15 @@ static int filter_stream(msgdb_cursor *cursor, int idxNum, int argc, sqlite3_val
   arg++;
 
   if ((idxNum & 2) != 0 && arg < argc) {
-    position = optional_i64(argv[arg], 0);
+    if (!optional_i64(argv[arg], 0, &position)) {
+      return vtab_error(&vtab->base, "position must be an integer or NULL");
+    }
     arg++;
   }
   if ((idxNum & 4) != 0 && arg < argc) {
-    batch_size = optional_i64(argv[arg], 1000);
+    if (!optional_i64(argv[arg], 1000, &batch_size)) {
+      return vtab_error(&vtab->base, "batch_size must be an integer or NULL");
+    }
     arg++;
   }
   if ((idxNum & 8) != 0 && arg < argc && optional_is_present(argv[arg])) {
@@ -818,11 +852,15 @@ static int filter_category(msgdb_cursor *cursor, int idxNum, int argc,
   arg++;
 
   if ((idxNum & 2) != 0 && arg < argc) {
-    position = optional_i64(argv[arg], 1);
+    if (!optional_i64(argv[arg], 1, &position)) {
+      return vtab_error(&vtab->base, "position must be an integer or NULL");
+    }
     arg++;
   }
   if ((idxNum & 4) != 0 && arg < argc) {
-    batch_size = optional_i64(argv[arg], 1000);
+    if (!optional_i64(argv[arg], 1000, &batch_size)) {
+      return vtab_error(&vtab->base, "batch_size must be an integer or NULL");
+    }
     arg++;
   }
   if ((idxNum & 8) != 0 && arg < argc) {
@@ -834,12 +872,16 @@ static int filter_category(msgdb_cursor *cursor, int idxNum, int argc,
   }
   if ((idxNum & 16) != 0 && arg < argc) {
     has_member = optional_is_present(argv[arg]);
-    consumer_group_member = sqlite3_value_int64(argv[arg]);
+    if (!optional_i64(argv[arg], 0, &consumer_group_member)) {
+      return vtab_error(&vtab->base, "consumer_group_member must be an integer or NULL");
+    }
     arg++;
   }
   if ((idxNum & 32) != 0 && arg < argc) {
     has_size = optional_is_present(argv[arg]);
-    consumer_group_size = sqlite3_value_int64(argv[arg]);
+    if (!optional_i64(argv[arg], 0, &consumer_group_size)) {
+      return vtab_error(&vtab->base, "consumer_group_size must be an integer or NULL");
+    }
     arg++;
   }
   if ((idxNum & 64) != 0 && arg < argc && optional_is_present(argv[arg])) {
@@ -1089,12 +1131,19 @@ static bool vtab_value_text(sqlite3_value *value, const char **text, int *bytes)
   return value_text(value, text, bytes);
 }
 
-static sqlite3_int64 optional_i64(sqlite3_value *value, sqlite3_int64 default_value) {
+static bool optional_i64(sqlite3_value *value, sqlite3_int64 default_value,
+                         sqlite3_int64 *result) {
   if (sqlite3_value_type(value) == SQLITE_NULL) {
-    return default_value;
+    *result = default_value;
+    return true;
   }
 
-  return sqlite3_value_int64(value);
+  if (sqlite3_value_type(value) != SQLITE_INTEGER) {
+    return false;
+  }
+
+  *result = sqlite3_value_int64(value);
+  return true;
 }
 
 static bool optional_is_present(sqlite3_value *value) {

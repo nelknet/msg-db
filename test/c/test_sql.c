@@ -135,7 +135,10 @@ int main(int argc, char **argv) {
   assert_scalar_eq(db, "1",
                    "SELECT position FROM get_last_stream_message('account-1', "
                    "'Deposited')");
+  assert_error(db, "SELECT * FROM get_stream_messages");
   assert_error(db, "SELECT * FROM get_stream_messages('account')");
+  assert_error(db, "SELECT * FROM get_stream_messages('account-1', '0')");
+  assert_error(db, "SELECT * FROM get_stream_messages('account-1', 0, 1.0)");
 
   assert_scalar_eq(
       db, "1,2,3",
@@ -145,6 +148,10 @@ int main(int argc, char **argv) {
                    "get_category_messages('account', 1, 1000, 'order')");
   assert_error(db, "SELECT * FROM get_category_messages('account-1')");
   assert_error(db, "SELECT * FROM get_category_messages('account', 1, 1000, 'order-1')");
+  assert_error(db, "SELECT * FROM get_category_messages");
+  assert_error(db, "SELECT * FROM get_category_messages('account', '1')");
+  assert_error(db, "SELECT * FROM get_category_messages('account', 1, 1000, NULL, '0', 2)");
+  assert_error(db, "SELECT * FROM get_category_messages('account', 1, 1000, NULL, 0, '2')");
   assert_scalar_eq(
       db, "3",
       "SELECT (SELECT COUNT(*) FROM get_category_messages('account', 1, 1000, "

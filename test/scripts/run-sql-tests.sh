@@ -110,7 +110,10 @@ assert_eq '0,1' "SELECT group_concat(position, ',') FROM get_stream_messages('ac
 assert_eq '1' "SELECT position FROM get_stream_messages('account-1', 1, 1000);"
 assert_eq '1' "SELECT position FROM get_last_stream_message('account-1');"
 assert_eq '1' "SELECT position FROM get_last_stream_message('account-1', 'Deposited');"
+assert_error "SELECT * FROM get_stream_messages;"
 assert_error "SELECT * FROM get_stream_messages('account');"
+assert_error "SELECT * FROM get_stream_messages('account-1', '0');"
+assert_error "SELECT * FROM get_stream_messages('account-1', 0, 1.0);"
 
 assert_eq '1,2,3' \
   "SELECT group_concat(global_position, ',') FROM get_category_messages('account');"
@@ -118,6 +121,10 @@ assert_eq '1,2' \
   "SELECT group_concat(global_position, ',') FROM get_category_messages('account', 1, 1000, 'order');"
 assert_error "SELECT * FROM get_category_messages('account-1');"
 assert_error "SELECT * FROM get_category_messages('account', 1, 1000, 'order-1');"
+assert_error "SELECT * FROM get_category_messages;"
+assert_error "SELECT * FROM get_category_messages('account', '1');"
+assert_error "SELECT * FROM get_category_messages('account', 1, 1000, NULL, '0', 2);"
+assert_error "SELECT * FROM get_category_messages('account', 1, 1000, NULL, 0, '2');"
 assert_eq '3' \
   "SELECT (SELECT COUNT(*) FROM get_category_messages('account', 1, 1000, NULL, 0, 2)) + (SELECT COUNT(*) FROM get_category_messages('account', 1, 1000, NULL, 1, 2));"
 

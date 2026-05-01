@@ -289,7 +289,7 @@ value fails.
 
 The `messages` table stores:
 
-- `global_position INTEGER PRIMARY KEY`
+- `global_position INTEGER PRIMARY KEY AUTOINCREMENT`
 - `position INTEGER NOT NULL`
 - `time TEXT NOT NULL`
 - `stream_name TEXT NOT NULL`
@@ -298,8 +298,8 @@ The `messages` table stores:
 - `metadata TEXT`
 - `id TEXT NOT NULL`
 
-Indexes enforce unique message IDs and unique `(stream_name, position)` pairs. An
-expression index supports category and correlation reads.
+Indexes enforce unique message IDs and unique `(stream_name, position)` pairs.
+Expression indexes support category, correlation, and type-filtered stream reads.
 
 ## Concurrency
 

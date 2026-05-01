@@ -131,6 +131,10 @@ int main(int argc, char **argv) {
   assert_scalar_eq(db, "1",
                    "SELECT instr(sql, 'AUTOINCREMENT') > 0 FROM sqlite_schema "
                    "WHERE type = 'table' AND name = 'messages'");
+  assert_scalar_eq(db, "2",
+                   "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'index' AND "
+                   "name IN ('messages_category_correlation', "
+                   "'messages_stream_type')");
   assert_error(db, "UPDATE messages SET type = 'Corrected' "
                    "WHERE id = 'a11e9022-e741-4450-bf9c-c4cc5ddb6ea3'");
   assert_error(db, "DELETE FROM messages "

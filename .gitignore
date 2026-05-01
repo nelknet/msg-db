@@ -1,1 +1,87 @@
+# Local reference material
 source_code_references/
+
+# Build directories
+build/
+build-*/
+cmake-build-*/
+out/
+
+# CMake and generator output
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+DartConfiguration.tcl
+Testing/
+install_manifest.txt
+compile_commands.json
+rules.ninja
+build.ninja
+.ninja_deps
+.ninja_log
+
+# C/C++ build artifacts
+*.a
+*.d
+*.dSYM/
+*.dll
+*.exe
+*.dylib
+*.gcda
+*.gcno
+*.gcov
+*.la
+*.lib
+*.lo
+*.o
+*.obj
+*.pdb
+*.ilk
+*.profdata
+*.profraw
+*.so
+*.so.*
+
+# SQLite databases and transient files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-shm
+*.sqlite3-wal
+message_store.sqlite3
+
+# Test, sanitizer, fuzzing, and analysis output
+*.log
+asan.*
+ubsan.*
+lsan.*
+msan.*
+tsan.*
+vgcore.*
+core
+crash-*
+leak-*
+oom-*
+timeout-*
+fuzz/corpus/
+fuzz/findings/
+
+# Editor, OS, and local environment files
+.DS_Store
+.cache/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.env
+.env.*
+CMakeUserPresets.json

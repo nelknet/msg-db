@@ -1,0 +1,13 @@
+Checks: >
+  clang-analyzer-*,
+  bugprone-*,
+  cert-*,
+  performance-*,
+  portability-*,
+  readability-inconsistent-declaration-parameter-name
+WarningsAsErrors: '*'
+HeaderFilterRegex: '^(extension|test|fuzz)/.*'
+AnalyzeTemporaryDtors: false
+CheckOptions:
+  - key: cert-err33-c.CheckedFunctions
+    value: 'malloc,realloc,calloc,free,memset,memcpy,memmove,strncpy,sqlite3_prepare_v2,sqlite3_step,sqlite3_finalize,sqlite3_bind_text,sqlite3_bind_int64,sqlite3_exec'

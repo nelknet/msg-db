@@ -82,6 +82,8 @@ assert_eq '0' \
   "SELECT write_message('c11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-2', 'Withdrawn', '{\"amount\": 5}', '{\"correlationStreamName\":\"shipment-2\"}', -1);"
 assert_eq '0' \
   "SELECT write_message('d11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'invoice-1', 'Issued', '{\"amount\": 10}', NULL);"
+assert_eq '{"amount":10}' \
+  "SELECT data FROM messages WHERE id = 'a11e9022-e741-4450-bf9c-c4cc5ddb6ea3';"
 
 assert_error \
   "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-1', 'Deposited', '{\"amount\": 30}', NULL, 0);"
@@ -95,8 +97,13 @@ assert_error \
   "SELECT write_message('a11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-3', 'Deposited', '{\"amount\": 1}', NULL);"
 assert_error \
   "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', 'account-3', 'Deposited', '{broken}', NULL);"
+sqlite \
+  "CREATE VIEW write_message_from_view AS SELECT write_message('f11e9022-e741-4450-bf9c-c4cc5ddb6ea6', 'account-4', 'Deposited', '{\"amount\": 1}', NULL);"
+assert_error "SELECT * FROM write_message_from_view;"
 assert_eq '1' \
   "SELECT instr(sql, 'AUTOINCREMENT') > 0 FROM sqlite_schema WHERE type = 'table' AND name = 'messages';"
+assert_eq '2' \
+  "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'index' AND name IN ('messages_category_correlation', 'messages_stream_type');"
 assert_error \
   "UPDATE messages SET type = 'Corrected' WHERE id = 'a11e9022-e741-4450-bf9c-c4cc5ddb6ea3';"
 assert_error \
@@ -108,7 +115,10 @@ assert_eq '0,1' "SELECT group_concat(position, ',') FROM get_stream_messages('ac
 assert_eq '1' "SELECT position FROM get_stream_messages('account-1', 1, 1000);"
 assert_eq '1' "SELECT position FROM get_last_stream_message('account-1');"
 assert_eq '1' "SELECT position FROM get_last_stream_message('account-1', 'Deposited');"
+assert_error "SELECT * FROM get_stream_messages;"
 assert_error "SELECT * FROM get_stream_messages('account');"
+assert_error "SELECT * FROM get_stream_messages('account-1', '0');"
+assert_error "SELECT * FROM get_stream_messages('account-1', 0, 1.0);"
 
 assert_eq '1,2,3' \
   "SELECT group_concat(global_position, ',') FROM get_category_messages('account');"
@@ -116,6 +126,10 @@ assert_eq '1,2' \
   "SELECT group_concat(global_position, ',') FROM get_category_messages('account', 1, 1000, 'order');"
 assert_error "SELECT * FROM get_category_messages('account-1');"
 assert_error "SELECT * FROM get_category_messages('account', 1, 1000, 'order-1');"
+assert_error "SELECT * FROM get_category_messages;"
+assert_error "SELECT * FROM get_category_messages('account', '1');"
+assert_error "SELECT * FROM get_category_messages('account', 1, 1000, NULL, '0', 2);"
+assert_error "SELECT * FROM get_category_messages('account', 1, 1000, NULL, 0, '2');"
 assert_eq '3' \
   "SELECT (SELECT COUNT(*) FROM get_category_messages('account', 1, 1000, NULL, 0, 2)) + (SELECT COUNT(*) FROM get_category_messages('account', 1, 1000, NULL, 1, 2));"
 

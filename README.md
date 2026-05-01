@@ -115,7 +115,8 @@ The port is intentionally conservative:
 - `global_position` is the ordered store position.
 - per-stream `position` starts at `0`.
 - message IDs are UUIDv4 text values.
-- `data` and `metadata` are JSON text guarded by `json_valid` checks.
+- `data` and `metadata` are canonical JSON text produced by SQLite `json()` and
+  guarded by `json_valid` checks.
 - advisory locks are not reimplemented; `acquire_lock` is a compatibility shim.
 
 ## Status

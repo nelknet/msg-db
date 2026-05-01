@@ -100,6 +100,9 @@ int main(int argc, char **argv) {
   assert_scalar_eq(db, "0",
                    "SELECT write_message('d11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
                    "'invoice-1', 'Issued', '{\"amount\": 10}', NULL)");
+  assert_scalar_eq(db, "{\"amount\":10}",
+                   "SELECT data FROM messages "
+                   "WHERE id = 'a11e9022-e741-4450-bf9c-c4cc5ddb6ea3'");
 
   assert_error(db, "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
                    "'account-1', 'Deposited', '{\"amount\": 30}', NULL, 0)");

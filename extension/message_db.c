@@ -369,13 +369,9 @@ static void write_message_func(sqlite3_context *ctx, int argc, sqlite3_value **a
   const char *id_text = NULL;
   const char *stream_name = NULL;
   const char *type = NULL;
-  const char *data = NULL;
-  const char *metadata = NULL;
   int id_bytes = 0;
   int stream_name_bytes = 0;
   int type_bytes = 0;
-  int data_bytes = 0;
-  int metadata_bytes = 0;
   char canonical_id[37] = {0};
   bool found = false;
   bool began = false;
@@ -405,20 +401,6 @@ static void write_message_func(sqlite3_context *ctx, int argc, sqlite3_value **a
   if (!msgdb_uuid_v4_canonical(id_text, (size_t)id_bytes, canonical_id)) {
     sqlite3_result_error(ctx, "write_message id must be a UUIDv4 string", -1);
     return;
-  }
-
-  if (sqlite3_value_type(argv[3]) != SQLITE_NULL) {
-    if (!value_text(argv[3], &data, &data_bytes)) {
-      sqlite3_result_error(ctx, "write_message data must be JSON text or NULL", -1);
-      return;
-    }
-  }
-
-  if (argc >= 5 && sqlite3_value_type(argv[4]) != SQLITE_NULL) {
-    if (!value_text(argv[4], &metadata, &metadata_bytes)) {
-      sqlite3_result_error(ctx, "write_message metadata must be JSON text or NULL", -1);
-      return;
-    }
   }
 
   if (argc >= 6 && sqlite3_value_type(argv[5]) != SQLITE_NULL) {
@@ -461,7 +443,8 @@ static void write_message_func(sqlite3_context *ctx, int argc, sqlite3_value **a
   rc = sqlite3_prepare_v2(
       db,
       "INSERT INTO messages (id, stream_name, position, type, data, metadata) "
-      "VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+      "VALUES (?1, ?2, ?3, ?4, CASE WHEN ?5 IS NULL THEN NULL ELSE json(?5) END, "
+      "CASE WHEN ?6 IS NULL THEN NULL ELSE json(?6) END)",
       -1, &insert_stmt, NULL);
   if (rc != SQLITE_OK) {
     set_context_sql_error(ctx, "write_message insert prepare", rc);
@@ -479,17 +462,13 @@ static void write_message_func(sqlite3_context *ctx, int argc, sqlite3_value **a
     rc = bind_text_value(insert_stmt, 4, type, type_bytes);
   }
   if (rc == SQLITE_OK) {
-    if (data == NULL) {
-      rc = sqlite3_bind_null(insert_stmt, 5);
-    } else {
-      rc = bind_text_value(insert_stmt, 5, data, data_bytes);
-    }
+    rc = sqlite3_bind_value(insert_stmt, 5, argv[3]);
   }
   if (rc == SQLITE_OK) {
-    if (metadata == NULL) {
+    if (argc < 5) {
       rc = sqlite3_bind_null(insert_stmt, 6);
     } else {
-      rc = bind_text_value(insert_stmt, 6, metadata, metadata_bytes);
+      rc = sqlite3_bind_value(insert_stmt, 6, argv[4]);
     }
   }
   if (rc != SQLITE_OK) {

@@ -116,6 +116,18 @@ int main(int argc, char **argv) {
                    "'account-3', 'Deposited', '{\"amount\": 1}', NULL)");
   assert_error(db, "SELECT write_message('e11e9022-e741-4450-bf9c-c4cc5ddb6ea3', "
                    "'account-3', 'Deposited', '{broken}', NULL)");
+  exec_sql(db, "CREATE INDEX messages_acquire_lock_test ON messages "
+               "(acquire_lock(stream_name))");
+  exec_sql(db, "PRAGMA trusted_schema = OFF");
+  exec_sql(db, "CREATE VIEW acquire_lock_from_view AS SELECT acquire_lock('account-1')");
+  assert_scalar_eq(db, "1", "SELECT COUNT(*) FROM acquire_lock_from_view");
+  exec_sql(db,
+           "CREATE VIEW stream_version_from_view AS SELECT stream_version('account-1')");
+  assert_error(db, "SELECT * FROM stream_version_from_view");
+  exec_sql(db, "CREATE VIEW write_message_from_view AS "
+               "SELECT write_message('f11e9022-e741-4450-bf9c-c4cc5ddb6ea6', "
+               "'account-4', 'Deposited', '{\"amount\": 1}', NULL)");
+  assert_error(db, "SELECT * FROM write_message_from_view");
   assert_scalar_eq(db, "1",
                    "SELECT instr(sql, 'AUTOINCREMENT') > 0 FROM sqlite_schema "
                    "WHERE type = 'table' AND name = 'messages'");

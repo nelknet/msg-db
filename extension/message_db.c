@@ -170,15 +170,19 @@ int msgdb_register(sqlite3 *db) {
   if (rc != SQLITE_OK) {
     return rc;
   }
-  rc = register_function(db, "stream_version", 1, SQLITE_UTF8, stream_version_func);
+  rc = register_function(db, "stream_version", 1, SQLITE_UTF8 | SQLITE_DIRECTONLY,
+                         stream_version_func);
   if (rc != SQLITE_OK) {
     return rc;
   }
-  rc = register_function(db, "acquire_lock", 1, SQLITE_UTF8, acquire_lock_func);
+  rc = register_function(db, "acquire_lock", 1,
+                         SQLITE_UTF8 | SQLITE_DETERMINISTIC | SQLITE_INNOCUOUS,
+                         acquire_lock_func);
   if (rc != SQLITE_OK) {
     return rc;
   }
-  rc = register_function(db, "write_message", -1, SQLITE_UTF8, write_message_func);
+  rc = register_function(db, "write_message", -1, SQLITE_UTF8 | SQLITE_DIRECTONLY,
+                         write_message_func);
   if (rc != SQLITE_OK) {
     return rc;
   }

@@ -159,26 +159,35 @@ static void bind_fuzz_value(sqlite3_stmt *stmt, int index, fuzz_input *input) {
     break;
   }
   case 3: {
+    size_t requested_length = next_byte(input) % (MSGDB_VTAB_FUZZ_MAX_BLOB + 1U);
     size_t remaining = input->offset <= input->size ? input->size - input->offset : 0U;
-    size_t length = next_byte(input) % (MSGDB_VTAB_FUZZ_MAX_BLOB + 1U);
+    size_t length = requested_length;
+    const char *bytes = "";
 
     if (length > remaining) {
       length = remaining;
     }
-    rc = sqlite3_bind_text(stmt, index, (const char *)(input->data + input->offset),
-                           (int)length, SQLITE_TRANSIENT);
+    if (length > 0U) {
+      bytes = (const char *)(input->data + input->offset);
+    }
+    rc = sqlite3_bind_text(stmt, index, bytes, (int)length, SQLITE_TRANSIENT);
     input->offset += length;
     break;
   }
   default: {
+    static const uint8_t empty = 0U;
+    size_t requested_length = next_byte(input) % (MSGDB_VTAB_FUZZ_MAX_BLOB + 1U);
     size_t remaining = input->offset <= input->size ? input->size - input->offset : 0U;
-    size_t length = next_byte(input) % (MSGDB_VTAB_FUZZ_MAX_BLOB + 1U);
+    size_t length = requested_length;
+    const void *bytes = &empty;
 
     if (length > remaining) {
       length = remaining;
     }
-    rc = sqlite3_bind_blob(stmt, index, input->data + input->offset, (int)length,
-                           SQLITE_TRANSIENT);
+    if (length > 0U) {
+      bytes = input->data + input->offset;
+    }
+    rc = sqlite3_bind_blob(stmt, index, bytes, (int)length, SQLITE_TRANSIENT);
     input->offset += length;
     break;
   }

@@ -8,7 +8,7 @@
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
 static void require_property(bool condition);
-static size_t first_index_of(const char *value, size_t size, char needle);
+static size_t first_dash_index(const char *value, size_t size);
 static bool has_no_dash(const char *value, size_t size);
 static void require_valid_span(msgdb_span span, size_t size);
 static void require_uuid_v4_canonical_output(const char out[37]);
@@ -19,9 +19,9 @@ static void require_property(bool condition) {
   }
 }
 
-static size_t first_index_of(const char *value, size_t size, char needle) {
+static size_t first_dash_index(const char *value, size_t size) {
   for (size_t i = 0U; i < size; i++) {
-    if (value[i] == needle) {
+    if (value[i] == '-') {
       return i;
     }
   }
@@ -30,7 +30,7 @@ static size_t first_index_of(const char *value, size_t size, char needle) {
 }
 
 static bool has_no_dash(const char *value, size_t size) {
-  return first_index_of(value, size, '-') == size;
+  return first_dash_index(value, size) == size;
 }
 
 static void require_valid_span(msgdb_span span, size_t size) {
@@ -91,7 +91,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   }
   buffer[size] = '\0';
 
-  first_dash = first_index_of(buffer, size, '-');
+  first_dash = first_dash_index(buffer, size);
 
   category_span = msgdb_category_span(buffer, size);
   id_span = msgdb_id_span(buffer, size);

@@ -37,6 +37,15 @@ typedef struct model_store {
   size_t count;
 } model_store;
 
+typedef struct write_case {
+  int id_slot;
+  int stream_index;
+  int type_index;
+  int metadata_index;
+  bool has_expected;
+  sqlite3_int64 expected_version;
+} write_case;
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
 static void require_property(bool condition);
@@ -52,9 +61,7 @@ static const char *stream_name(int stream_index);
 static const char *stream_category(int stream_index);
 static const char *message_type(int type_index);
 static const char *metadata_value(int metadata_index);
-static int write_sql(sqlite3 *db, int id_slot, int stream_index, int type_index,
-                     int metadata_index, bool has_expected, sqlite3_int64 expected_version,
-                     sqlite3_int64 *actual_position);
+static int write_sql(sqlite3 *db, const write_case *write, sqlite3_int64 *actual_position);
 static void run_write(fuzz_input *input, sqlite3 *db, model_store *model);
 static void run_stream_version(fuzz_input *input, sqlite3 *db, const model_store *model);
 static void run_stream_read(fuzz_input *input, sqlite3 *db, const model_store *model);
@@ -165,24 +172,22 @@ static const char *metadata_value(int metadata_index) {
   return msgdb_model_metadata[metadata_index];
 }
 
-static int write_sql(sqlite3 *db, int id_slot, int stream_index, int type_index,
-                     int metadata_index, bool has_expected, sqlite3_int64 expected_version,
-                     sqlite3_int64 *actual_position) {
-  const char *sql = has_expected ? "SELECT write_message(?1, ?2, ?3, ?4, ?5, ?6)"
-                                 : "SELECT write_message(?1, ?2, ?3, ?4, ?5)";
+static int write_sql(sqlite3 *db, const write_case *write, sqlite3_int64 *actual_position) {
+  const char *sql = write->has_expected ? "SELECT write_message(?1, ?2, ?3, ?4, ?5, ?6)"
+                                        : "SELECT write_message(?1, ?2, ?3, ?4, ?5)";
   sqlite3_stmt *stmt = NULL;
-  const char *metadata = metadata_value(metadata_index);
+  const char *metadata = metadata_value(write->metadata_index);
   char id[37] = {0};
   int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 
   require_property(rc == SQLITE_OK);
-  make_id(id_slot, id);
+  make_id(write->id_slot, id);
 
   rc = sqlite3_bind_text(stmt, 1, id, 36, SQLITE_TRANSIENT);
   require_property(rc == SQLITE_OK);
-  rc = sqlite3_bind_text(stmt, 2, stream_name(stream_index), -1, SQLITE_STATIC);
+  rc = sqlite3_bind_text(stmt, 2, stream_name(write->stream_index), -1, SQLITE_STATIC);
   require_property(rc == SQLITE_OK);
-  rc = sqlite3_bind_text(stmt, 3, message_type(type_index), -1, SQLITE_STATIC);
+  rc = sqlite3_bind_text(stmt, 3, message_type(write->type_index), -1, SQLITE_STATIC);
   require_property(rc == SQLITE_OK);
   rc = sqlite3_bind_text(stmt, 4, "{}", -1, SQLITE_STATIC);
   require_property(rc == SQLITE_OK);
@@ -193,8 +198,8 @@ static int write_sql(sqlite3 *db, int id_slot, int stream_index, int type_index,
   }
   require_property(rc == SQLITE_OK);
 
-  if (has_expected) {
-    rc = sqlite3_bind_int64(stmt, 6, expected_version);
+  if (write->has_expected) {
+    rc = sqlite3_bind_int64(stmt, 6, write->expected_version);
     require_property(rc == SQLITE_OK);
   }
 
@@ -218,12 +223,9 @@ static int write_sql(sqlite3 *db, int id_slot, int stream_index, int type_index,
 }
 
 static void run_write(fuzz_input *input, sqlite3 *db, model_store *model) {
-  int id_slot = (int)(next_byte(input) % MSGDB_MODEL_ID_SLOTS);
-  int stream_index = (int)(next_byte(input) % MSGDB_MODEL_STREAMS);
-  int type_index = (int)(next_byte(input) % MSGDB_MODEL_TYPES);
-  int metadata_index = (int)(next_byte(input) % MSGDB_MODEL_METADATA);
+  write_case write = {0, 0, 0, 0, false, 0};
   int expected_mode = (int)(next_byte(input) % 4U);
-  sqlite3_int64 current_version = model_stream_version(model, stream_index);
+  sqlite3_int64 current_version = 0;
   sqlite3_int64 expected_version = 0;
   sqlite3_int64 actual_position = -1;
   bool has_expected = expected_mode != 0;
@@ -234,6 +236,12 @@ static void run_write(fuzz_input *input, sqlite3 *db, model_store *model) {
     return;
   }
 
+  write.id_slot = (int)(next_byte(input) % MSGDB_MODEL_ID_SLOTS);
+  write.stream_index = (int)(next_byte(input) % MSGDB_MODEL_STREAMS);
+  write.type_index = (int)(next_byte(input) % MSGDB_MODEL_TYPES);
+  write.metadata_index = (int)(next_byte(input) % MSGDB_MODEL_METADATA);
+  current_version = model_stream_version(model, write.stream_index);
+
   if (expected_mode == 1) {
     expected_version = current_version;
   } else if (expected_mode == 2) {
@@ -242,11 +250,12 @@ static void run_write(fuzz_input *input, sqlite3 *db, model_store *model) {
     expected_version = -1;
   }
 
-  should_succeed =
-      !model->used_ids[id_slot] && (!has_expected || expected_version == current_version);
+  write.has_expected = has_expected;
+  write.expected_version = expected_version;
+  should_succeed = !model->used_ids[write.id_slot] &&
+                   (!write.has_expected || write.expected_version == current_version);
 
-  rc = write_sql(db, id_slot, stream_index, type_index, metadata_index, has_expected,
-                 expected_version, &actual_position);
+  rc = write_sql(db, &write, &actual_position);
 
   if (!should_succeed) {
     require_property(rc != SQLITE_OK);
@@ -256,9 +265,9 @@ static void run_write(fuzz_input *input, sqlite3 *db, model_store *model) {
   require_property(rc == SQLITE_OK);
   require_property(actual_position == current_version + 1);
 
-  model->used_ids[id_slot] = true;
-  model->messages[model->count].stream_index = stream_index;
-  model->messages[model->count].type_index = type_index;
+  model->used_ids[write.id_slot] = true;
+  model->messages[model->count].stream_index = write.stream_index;
+  model->messages[model->count].type_index = write.type_index;
   model->messages[model->count].global_position = (sqlite3_int64)model->count + 1;
   model->messages[model->count].position = actual_position;
   model->count++;

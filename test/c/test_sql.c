@@ -18,13 +18,19 @@
 #include <unistd.h>
 #endif
 
+#if defined(_MSC_VER)
+#define MSGDB_NORETURN __declspec(noreturn)
+#else
+#define MSGDB_NORETURN _Noreturn
+#endif
+
 typedef struct writer_arg {
   const char *database_path;
   int index;
   int rc;
 } writer_arg;
 
-static void fail(sqlite3 *db, const char *message);
+MSGDB_NORETURN static void fail(sqlite3 *db, const char *message);
 static void require_true(bool condition, const char *message);
 static char *create_temp_database_path(void);
 static void remove_database_files(const char *database_path);
@@ -146,7 +152,7 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-static void fail(sqlite3 *db, const char *message) {
+MSGDB_NORETURN static void fail(sqlite3 *db, const char *message) {
   if (db != NULL) {
     fprintf(stderr, "%s: %s\n", message, sqlite3_errmsg(db));
   } else {

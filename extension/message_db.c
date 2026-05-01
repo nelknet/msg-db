@@ -529,6 +529,7 @@ cleanup:
   }
 }
 
+// cppcheck-suppress constParameterCallback
 static int msgdb_vtab_connect(sqlite3 *db, void *pAux, int argc, const char *const *argv,
                               sqlite3_vtab **ppVtab, char **pzErr) {
   msgdb_vtab *vtab = NULL;
@@ -589,7 +590,7 @@ static int msgdb_vtab_disconnect(sqlite3_vtab *pVtab) {
 }
 
 static int msgdb_vtab_best_index(sqlite3_vtab *pVTab, sqlite3_index_info *pIdxInfo) {
-  msgdb_vtab *vtab = (msgdb_vtab *)pVTab;
+  const msgdb_vtab *vtab = (const msgdb_vtab *)pVTab;
   int argv_index = 1;
   int idx_num = 0;
   int hidden_start = 8;

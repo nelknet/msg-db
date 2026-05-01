@@ -240,7 +240,7 @@ static void md5_update(msgdb_md5_ctx *ctx, const unsigned char *data, size_t len
 
 static void md5_final(msgdb_md5_ctx *ctx, unsigned char digest[16]) {
   unsigned char length_bytes[8] = {0U};
-  unsigned char pad[64] = {0x80U};
+  const unsigned char pad[64] = {0x80U};
   size_t pad_length;
   uint64_t bit_length = ctx->total_length * 8U;
 

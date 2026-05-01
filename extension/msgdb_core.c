@@ -16,7 +16,7 @@ static void write_le64(unsigned char *bytes, uint64_t value);
 static void md5_init(msgdb_md5_ctx *ctx);
 static void md5_update(msgdb_md5_ctx *ctx, const unsigned char *data, size_t length);
 static void md5_final(msgdb_md5_ctx *ctx, unsigned char digest[16]);
-static void md5_transform(msgdb_md5_ctx *ctx, const unsigned char block[64]);
+static void md5_transform(msgdb_md5_ctx *ctx, const unsigned char *block);
 static bool is_hex(char value);
 static char lower_hex(char value);
 static int64_t signed_i64_from_u64(uint64_t value);
@@ -263,7 +263,7 @@ static void md5_final(msgdb_md5_ctx *ctx, unsigned char digest[16]) {
   }
 }
 
-static void md5_transform(msgdb_md5_ctx *ctx, const unsigned char block[64]) {
+static void md5_transform(msgdb_md5_ctx *ctx, const unsigned char *block) {
   static const uint32_t shift[] = {
       7U, 12U, 17U, 22U, 7U, 12U, 17U, 22U, 7U, 12U, 17U, 22U, 7U, 12U, 17U, 22U,
       5U, 9U,  14U, 20U, 5U, 9U,  14U, 20U, 5U, 9U,  14U, 20U, 5U, 9U,  14U, 20U,
